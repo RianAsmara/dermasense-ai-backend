@@ -53,6 +53,7 @@ type JWTConfig struct {
 // OpenAIConfig holds OpenAI API settings.
 type OpenAIConfig struct {
 	APIKey  string
+	BaseURL string
 	Model   string
 	Timeout time.Duration
 }
@@ -99,7 +100,8 @@ func Load() *Config {
 		},
 		OpenAI: OpenAIConfig{
 			APIKey:  getEnv("OPENAI_API_KEY", ""),
-			Model:   getEnv("OPENAI_MODEL", "gpt-4o"),
+			BaseURL: getEnv("OPENAI_BASE_URL", "https://ai.sumopod.com/v1"),
+			Model:   getEnv("OPENAI_MODEL", "gpt-4.1-mini"),
 			Timeout: getDurationEnv("OPENAI_TIMEOUT", 60*time.Second),
 		},
 		Google: GoogleConfig{

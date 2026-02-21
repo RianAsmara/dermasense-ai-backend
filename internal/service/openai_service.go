@@ -20,12 +20,15 @@ type OpenAIService struct {
 
 // NewOpenAIService creates a new OpenAIService.
 func NewOpenAIService(cfg *config.Config) *OpenAIService {
-	client := openai.NewClient(cfg.OpenAI.APIKey)
+	clientCfg := openai.DefaultConfig(cfg.OpenAI.APIKey)
+	clientCfg.BaseURL = cfg.OpenAI.BaseURL
+	client := openai.NewClientWithConfig(clientCfg)
 	return &OpenAIService{
 		client: client,
 		cfg:    cfg,
 	}
 }
+
 
 const skinAnalysisPrompt = `You are an expert dermatologist AI assistant. Analyze the provided skin image and return a structured JSON diagnosis.
 
