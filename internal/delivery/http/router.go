@@ -8,7 +8,6 @@ import (
 	"github.com/dermasense/backend/internal/service"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/redis/go-redis/v9"
 )
@@ -42,10 +41,7 @@ func NewRouter(
 // Setup registers all routes and middleware.
 func (r *Router) Setup() {
 	r.app.Use(recover.New())
-	r.app.Use(logger.New(logger.Config{
-		Format:     "${time} | ${status} | ${latency} | ${method} ${path}\n",
-		TimeFormat: "2006-01-02 15:04:05",
-	}))
+	r.app.Use(middleware.RequestLogger())
 	r.app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
@@ -70,6 +66,7 @@ func (r *Router) Setup() {
 		KeyPrefix: "rl:auth",
 	}))
 	auth.Post("/google", r.authHandler.GoogleLogin)
+	auth.Post("/dummy", r.authHandler.DummyLogin)
 
 	protected := v1.Group("")
 	protected.Use(middleware.AuthMiddleware(r.authService))

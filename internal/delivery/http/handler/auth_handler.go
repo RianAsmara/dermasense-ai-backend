@@ -47,3 +47,18 @@ func (h *AuthHandler) GoogleLogin(c *fiber.Ctx) error {
 		"data":    resp,
 	})
 }
+
+// DummyLogin logs in a predefined dummy user for development environments.
+func (h *AuthHandler) DummyLogin(c *fiber.Ctx) error {
+	resp, err := h.authService.DummyLogin(c.Context())
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"data":    resp,
+	})
+}

@@ -86,6 +86,45 @@ func (s *AuthService) GoogleLogin(ctx context.Context, idToken string) (*AuthRes
 	}, nil
 }
 
+// DummyLogin logs in a predefined dummy user for development environments.
+func (s *AuthService) DummyLogin(ctx context.Context) (*AuthResponse, error) {
+	dummyEmail := "dummy.dev@example.com"
+	dummyName := "Dev User"
+	dummyPicture := "https://api.dicebear.com/7.x/avataaars/svg?seed=Dummy"
+
+	user, err := s.userRepo.GetByEmail(ctx, dummyEmail)
+	if err != nil {
+		user = &entity.User{
+			ID:      uuid.New().String(),
+			Email:   dummyEmail,
+			Name:    dummyName,
+			Picture: dummyPicture,
+		}
+
+		if err := s.userRepo.Create(ctx, user); err != nil {
+			return nil, fmt.Errorf("failed to create dummy user: %w", err)
+		}
+
+		quota := &entity.Quota{
+			UserID:         user.ID,
+			RemainingScans: s.cfg.App.DefaultFreeScans,
+		}
+		if err := s.quotaRepo.Create(ctx, quota); err != nil {
+			return nil, fmt.Errorf("failed to create dummy quota: %w", err)
+		}
+	}
+
+	token, err := s.generateJWT(user)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate dummy token: %w", err)
+	}
+
+	return &AuthResponse{
+		Token: token,
+		User:  user,
+	}, nil
+}
+
 func (s *AuthService) verifyGoogleToken(ctx context.Context, idToken string) (*GoogleTokenInfo, error) {
 	url := "https://oauth2.googleapis.com/tokeninfo?id_token=" + idToken
 
