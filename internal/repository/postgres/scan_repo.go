@@ -25,15 +25,19 @@ func (r *ScanRepo) Create(ctx context.Context, scan *entity.Scan) error {
 	if err != nil {
 		return err
 	}
+	recommendationsID, err := json.Marshal(scan.RecommendationsID)
+	if err != nil {
+		return err
+	}
 
 	query := `
-		INSERT INTO scans (id, user_id, image_url, diagnosis, confidence, severity, explanation, recommendations, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+		INSERT INTO scans (id, user_id, image_url, diagnosis, diagnosis_id, confidence, severity, explanation, explanation_id, recommendations, recommendations_id, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`
 
 	_, err = r.pool.Exec(ctx, query,
-		scan.ID, scan.UserID, scan.ImageURL, scan.Diagnosis,
-		scan.Confidence, scan.Severity, scan.Explanation,
-		recommendations, time.Now(),
+		scan.ID, scan.UserID, scan.ImageURL, scan.Diagnosis, scan.DiagnosisID,
+		scan.Confidence, scan.Severity, scan.Explanation, scan.ExplanationID,
+		recommendations, recommendationsID, time.Now(),
 	)
 	return err
 }
@@ -42,15 +46,16 @@ func (r *ScanRepo) Create(ctx context.Context, scan *entity.Scan) error {
 func (r *ScanRepo) GetByID(ctx context.Context, id string) (*entity.Scan, error) {
 	scan := &entity.Scan{}
 	var recommendations []byte
+	var recommendationsID []byte
 
 	query := `
-		SELECT id, user_id, image_url, diagnosis, confidence, severity, explanation, recommendations, created_at
+		SELECT id, user_id, image_url, diagnosis, diagnosis_id, confidence, severity, explanation, explanation_id, recommendations, recommendations_id, created_at
 		FROM scans WHERE id = $1`
 
 	err := r.pool.QueryRow(ctx, query, id).Scan(
-		&scan.ID, &scan.UserID, &scan.ImageURL, &scan.Diagnosis,
-		&scan.Confidence, &scan.Severity, &scan.Explanation,
-		&recommendations, &scan.CreatedAt,
+		&scan.ID, &scan.UserID, &scan.ImageURL, &scan.Diagnosis, &scan.DiagnosisID,
+		&scan.Confidence, &scan.Severity, &scan.Explanation, &scan.ExplanationID,
+		&recommendations, &recommendationsID, &scan.CreatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -59,13 +64,16 @@ func (r *ScanRepo) GetByID(ctx context.Context, id string) (*entity.Scan, error)
 	if err := json.Unmarshal(recommendations, &scan.Recommendations); err != nil {
 		return nil, err
 	}
+	if err := json.Unmarshal(recommendationsID, &scan.RecommendationsID); err != nil {
+		return nil, err
+	}
 	return scan, nil
 }
 
 // GetByUserID retrieves scans for a user with pagination.
 func (r *ScanRepo) GetByUserID(ctx context.Context, userID string, limit, offset int) ([]*entity.Scan, error) {
 	query := `
-		SELECT id, user_id, image_url, diagnosis, confidence, severity, explanation, recommendations, created_at
+		SELECT id, user_id, image_url, diagnosis, diagnosis_id, confidence, severity, explanation, explanation_id, recommendations, recommendations_id, created_at
 		FROM scans WHERE user_id = $1
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3`
@@ -80,17 +88,21 @@ func (r *ScanRepo) GetByUserID(ctx context.Context, userID string, limit, offset
 	for rows.Next() {
 		scan := &entity.Scan{}
 		var recommendations []byte
+		var recommendationsID []byte
 
 		err := rows.Scan(
-			&scan.ID, &scan.UserID, &scan.ImageURL, &scan.Diagnosis,
-			&scan.Confidence, &scan.Severity, &scan.Explanation,
-			&recommendations, &scan.CreatedAt,
+			&scan.ID, &scan.UserID, &scan.ImageURL, &scan.Diagnosis, &scan.DiagnosisID,
+			&scan.Confidence, &scan.Severity, &scan.Explanation, &scan.ExplanationID,
+			&recommendations, &recommendationsID, &scan.CreatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
 
 		if err := json.Unmarshal(recommendations, &scan.Recommendations); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(recommendationsID, &scan.RecommendationsID); err != nil {
 			return nil, err
 		}
 		scans = append(scans, scan)

@@ -42,13 +42,14 @@ func NewRouter(
 func (r *Router) Setup() {
 	r.app.Use(recover.New())
 	r.app.Use(middleware.RequestLogger())
+	r.app.Use(middleware.ResponseLogger())
 	r.app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 		AllowMethods: "GET, POST, PUT, DELETE, OPTIONS",
 	}))
 
-	r.app.Static("/uploads", "./uploads")
+	r.app.Static("/tmp", "./tmp")
 
 	r.app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{

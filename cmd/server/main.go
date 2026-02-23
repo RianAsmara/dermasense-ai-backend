@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/dermasense/backend/internal/config"
 	httpDelivery "github.com/dermasense/backend/internal/delivery/http"
@@ -37,8 +38,8 @@ func main() {
 	defer redisClient.Close()
 	log.Println("✓ Connected to Redis")
 
-	if err := os.MkdirAll(cfg.App.UploadDir, 0o755); err != nil {
-		log.Fatalf("Failed to create upload directory: %v", err)
+	if err := os.MkdirAll("tmp/scans", 0o755); err != nil {
+		log.Fatalf("Failed to create temp scan directory: %v", err)
 	}
 
 	userRepo := postgres.NewUserRepo(pool)
@@ -48,6 +49,7 @@ func main() {
 	authService := service.NewAuthService(userRepo, quotaRepo, cfg)
 	openAIService := service.NewOpenAIService(cfg)
 	scanService := service.NewScanService(scanRepo, quotaRepo, openAIService, cfg)
+	scanService.StartImageCleanup(3*24*time.Hour, 1*time.Hour) // Delete images older than 3 days, check every hour
 	quotaService := service.NewQuotaService(quotaRepo)
 
 	authHandler := handler.NewAuthHandler(authService)

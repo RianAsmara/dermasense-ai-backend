@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/dermasense/backend/internal/config"
 	"github.com/dermasense/backend/internal/domain/entity"
@@ -73,20 +75,23 @@ func (s *ScanService) CreateScan(ctx context.Context, userID string, file *multi
 		return nil, fmt.Errorf("failed to save image: %w", err)
 	}
 
-	result, err := s.openAISvc.AnalyzeSkinImage(ctx, imageData)
+	result, err := s.openAISvc.AnalyzeSkinImage(ctx, imageData, contentType)
 	if err != nil {
 		return nil, fmt.Errorf("ai analysis failed: %w", err)
 	}
 
 	scan := &entity.Scan{
-		ID:              scanID,
-		UserID:          userID,
-		ImageURL:        imageURL,
-		Diagnosis:       result.Diagnosis,
-		Confidence:      result.Confidence,
-		Severity:        result.Severity,
-		Explanation:     result.Explanation,
-		Recommendations: result.Recommendations,
+		ID:                scanID,
+		UserID:            userID,
+		ImageURL:          imageURL,
+		Diagnosis:         result.Diagnosis,
+		DiagnosisID:       result.DiagnosisID,
+		Confidence:        result.Confidence,
+		Severity:          result.Severity,
+		Explanation:       result.Explanation,
+		ExplanationID:     result.ExplanationID,
+		Recommendations:   result.Recommendations,
+		RecommendationsID: result.RecommendationsID,
 	}
 
 	if err := s.scanRepo.Create(ctx, scan); err != nil {
@@ -133,7 +138,7 @@ func (s *ScanService) saveImage(scanID, originalName string, data []byte) (strin
 	}
 
 	filename := scanID + ext
-	dirPath := filepath.Join(s.cfg.App.UploadDir, "scans")
+	dirPath := filepath.Join("tmp", "scans")
 
 	if err := os.MkdirAll(dirPath, 0o755); err != nil {
 		return "", err
@@ -144,7 +149,64 @@ func (s *ScanService) saveImage(scanID, originalName string, data []byte) (strin
 		return "", err
 	}
 
-	return "/uploads/scans/" + filename, nil
+	return "/tmp/scans/" + filename, nil
+}
+
+// StartImageCleanup starts a background goroutine that deletes scan images
+// older than maxAge. Runs every checkInterval.
+func (s *ScanService) StartImageCleanup(maxAge time.Duration, checkInterval time.Duration) {
+	go func() {
+		log.Printf("🧹 Image cleanup worker started (max age: %v, interval: %v)", maxAge, checkInterval)
+		ticker := time.NewTicker(checkInterval)
+		defer ticker.Stop()
+
+		// Run once immediately on startup
+		s.cleanupOldImages(maxAge)
+
+		for range ticker.C {
+			s.cleanupOldImages(maxAge)
+		}
+	}()
+}
+
+func (s *ScanService) cleanupOldImages(maxAge time.Duration) {
+	dirPath := filepath.Join("tmp", "scans")
+
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return // Directory doesn't exist yet, nothing to clean
+		}
+		log.Printf("⚠️ Cleanup: failed to read dir: %v", err)
+		return
+	}
+
+	now := time.Now()
+	deleted := 0
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		if now.Sub(info.ModTime()) > maxAge {
+			filePath := filepath.Join(dirPath, entry.Name())
+			if err := os.Remove(filePath); err != nil {
+				log.Printf("⚠️ Cleanup: failed to delete %s: %v", entry.Name(), err)
+			} else {
+				deleted++
+			}
+		}
+	}
+
+	if deleted > 0 {
+		log.Printf("🧹 Cleanup: deleted %d old scan image(s)", deleted)
+	}
 }
 
 func isValidImageType(contentType string) bool {

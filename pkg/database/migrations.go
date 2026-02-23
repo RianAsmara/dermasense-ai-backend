@@ -41,6 +41,23 @@ func RunMigrations(pool *pgxpool.Pool) error {
 			remaining_scans INTEGER NOT NULL DEFAULT 3,
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
+
+		// Bilingual support columns
+		`DO $$ BEGIN
+			IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scans' AND column_name='diagnosis_id') THEN
+				ALTER TABLE scans ADD COLUMN diagnosis_id VARCHAR(255) NOT NULL DEFAULT '';
+			END IF;
+		END $$`,
+		`DO $$ BEGIN
+			IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scans' AND column_name='explanation_id') THEN
+				ALTER TABLE scans ADD COLUMN explanation_id TEXT NOT NULL DEFAULT '';
+			END IF;
+		END $$`,
+		`DO $$ BEGIN
+			IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scans' AND column_name='recommendations_id') THEN
+				ALTER TABLE scans ADD COLUMN recommendations_id JSONB NOT NULL DEFAULT '[]';
+			END IF;
+		END $$`,
 	}
 
 	for i, migration := range migrations {
